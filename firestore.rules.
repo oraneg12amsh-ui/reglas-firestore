@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Define un ID de usuario administrador.
+    // IMPORTANTE: Debes reemplazar 'TU_ADMIN_USER_ID' con el UID de tu cuenta de administrador.
+    // En un entorno de producción, es preferible usar Custom Claims de Firebase Auth para definir roles de forma segura.
+    function isAdmin() {
+      return request.auth.uid == 'TU_ADMIN_USER_ID';
+    }
+
+    // Colección de reportes públicos para la aplicación.
+    // El 'appId' es una variable del entorno que se utiliza para separar los datos por aplicación.
+    match /artifacts/{appId}/public/data/reports/{reportId} {
+
+      // Permite que cualquier usuario autenticado lea la colección.
+      // Esto es necesario para generar los gráficos de grupo.
+      allow read: if request.auth != null;
+
+      // Permite la creación de un nuevo reporte si el usuario está autenticado y los datos son válidos.
+      allow create: if request.auth != null && isValidReport();
+
+      // Permite la eliminación de un reporte solo si el usuario es un administrador.
+      allow delete: if isAdmin();
+      
+      // No se permite actualizar reportes una vez que han sido creados para mantener la integridad de los resultados.
+      allow update: if false;
+
+      // Validación de la estructura del reporte.
+      function isValidReport() {
+        return request.resource.data.keys().hasAll([
+          'student',
+          'testKey',
+          'scores',
+          'timestamp',
+          'answers'
+        ]) &&
+        request.resource.data.student is map &&
+        request.resource.data.student.name is string &&
+        request.resource.data.student.age is number &&
+        request.resource.data.student.grade is string &&
+        request.resource.data.testKey is string &&
+        request.resource.data.scores is map &&
+        request.resource.data.timestamp is string &&
+        request.resource.data.answers is string;
+      }
+    }
+  }
+}
